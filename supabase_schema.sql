@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS public.sessions (
     month TEXT NOT NULL,
     matches JSONB NOT NULL DEFAULT '[]'::JSONB,
     team_players JSONB NOT NULL DEFAULT '{}'::JSONB,
+    match_mode TEXT NOT NULL DEFAULT 'fixed',
     created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 

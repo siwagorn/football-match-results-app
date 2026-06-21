@@ -43,6 +43,12 @@ const lineImportText = ref('');
 const shareDialogVisible = ref(false);
 const shareText = ref('');
 
+// New Session Dialog States
+const newSessionDialogVisible = ref(false);
+const newSessionName = ref('');
+const newSessionMode = ref<'fixed' | 'flexible'>('fixed');
+const newSessionDate = ref(new Date().toISOString().slice(0, 10));
+
 const defaultTeams: Team[] = [
   { id: 'team-1', name: 'ทีมสีน้ำเงิน', color: '#3b82f6' },
   { id: 'team-2', name: 'ทีมสีแดง', color: '#ef4444' },
@@ -112,18 +118,34 @@ const checkAdminAndExecute = (action: () => void) => {
 const saveSessionToSupabase = async (session: GameSession) => {
   if (!supabaseUrl || !supabaseAnonKey) return;
   try {
+    const payload: any = {
+      id: session.id,
+      name: session.name,
+      date: session.date,
+      month: session.month,
+      matches: session.matches,
+      team_players: session.teamPlayers || {},
+      match_mode: session.matchMode || 'fixed',
+      created_at: new Date(parseInt(session.id.split('-')[1]) || Date.now()).toISOString()
+    };
+    
     const { error } = await supabase
       .from('sessions')
-      .upsert({
-        id: session.id,
-        name: session.name,
-        date: session.date,
-        month: session.month,
-        matches: session.matches,
-        team_players: session.teamPlayers || {},
-        created_at: new Date(parseInt(session.id.split('-')[1]) || Date.now()).toISOString()
-      });
-    if (error) throw error;
+      .upsert(payload);
+      
+    if (error) {
+      // Graceful fallback for missing match_mode column
+      if (error.message && error.message.includes('match_mode')) {
+        console.warn('Supabase: match_mode column might not exist. Retrying without match_mode...');
+        delete payload.match_mode;
+        const { error: retryError } = await supabase
+          .from('sessions')
+          .upsert(payload);
+        if (retryError) throw retryError;
+      } else {
+        throw error;
+      }
+    }
   } catch (err) {
     console.error('Failed to save session to Supabase:', err);
   }
@@ -171,7 +193,11 @@ const loadLocalStorageFallback = () => {
   const savedActiveId = localStorage.getItem('football_app_active_session_id');
 
   if (savedSessions && savedActiveId) {
-    sessions.value = JSON.parse(savedSessions);
+    const parsed = JSON.parse(savedSessions);
+    sessions.value = parsed.map((s: any) => ({
+      ...s,
+      matchMode: s.matchMode || 'fixed'
+    }));
     activeSessionId.value = savedActiveId;
   } else {
     const firstSession: GameSession = {
@@ -180,7 +206,8 @@ const loadLocalStorageFallback = () => {
       date: new Date().toISOString().slice(0, 10),
       month: new Date().toISOString().slice(0, 7),
       matches: generateInitialMatches(teams.value),
-      teamPlayers: {}
+      teamPlayers: {},
+      matchMode: 'fixed'
     };
     sessions.value = [firstSession];
     activeSessionId.value = firstSession.id;
@@ -223,7 +250,8 @@ const fetchFromSupabase = async () => {
         date: s.date,
         month: s.month,
         matches: s.matches,
-        teamPlayers: s.team_players
+        teamPlayers: s.team_players,
+        matchMode: s.match_mode || 'fixed'
       }));
       const savedActiveId = localStorage.getItem('football_app_active_session_id');
       if (savedActiveId && sessions.value.some(s => s.id === savedActiveId)) {
@@ -524,26 +552,81 @@ const handleTeamsUpdate = (updatedTeams: Team[]) => {
 
 const handleAddSession = () => {
   checkAdminAndExecute(() => {
-    const nextIndex = sessions.value.length + 1;
-    const nextDate = new Date();
-    const nextDateStr = nextDate.toISOString().slice(0, 10);
-    const nextMonthStr = nextDate.toISOString().slice(0, 7);
+    newSessionName.value = `สัปดาห์ที่ ${sessions.value.length + 1}`;
+    newSessionMode.value = 'fixed';
+    newSessionDate.value = new Date().toISOString().slice(0, 10);
+    newSessionDialogVisible.value = true;
+  });
+};
 
-    const newSession: GameSession = {
-      id: `session-${Date.now()}`,
-      name: `สัปดาห์ที่ ${nextIndex}`,
-      date: nextDateStr,
-      month: nextMonthStr,
-      matches: generateInitialMatches(teams.value),
-      teamPlayers: {}
+const confirmAddSession = () => {
+  if (!newSessionName.value.trim()) {
+    ElMessage.warning('กรุณากรอกชื่อสัปดาห์');
+    return;
+  }
+  
+  const nextMonthStr = newSessionDate.value.slice(0, 7);
+  
+  const newSession: GameSession = {
+    id: `session-${Date.now()}`,
+    name: newSessionName.value,
+    date: newSessionDate.value,
+    month: nextMonthStr,
+    matches: newSessionMode.value === 'fixed' ? generateInitialMatches(teams.value) : [],
+    teamPlayers: {},
+    matchMode: newSessionMode.value
+  };
+  
+  sessions.value.push(newSession);
+  activeSessionId.value = newSession.id;
+  activeTab.value = 'matches'; // Jump directly to matches
+  saveToLocalStorageOnly();
+  saveSessionToSupabase(newSession);
+  ElMessage.success(`สร้าง "${newSession.name}" เรียบร้อยแล้ว!`);
+  newSessionDialogVisible.value = false;
+};
+
+const handleAddMatch = (homeTeamId: string, awayTeamId: string) => {
+  checkAdminAndExecute(() => {
+    if (!activeSession.value) return;
+    if (!activeSession.value.matches) {
+      activeSession.value.matches = [];
+    }
+    
+    const nextId = activeSession.value.matches.length > 0 
+      ? Math.max(...activeSession.value.matches.map(m => m.id)) + 1 
+      : 1;
+      
+    const newMatch: Match = {
+      id: nextId,
+      round: activeSession.value.matches.length + 1,
+      homeTeamId,
+      awayTeamId,
+      homeScore: null,
+      awayScore: null,
+      played: false
     };
-
-    sessions.value.push(newSession);
-    activeSessionId.value = newSession.id;
-    activeTab.value = 'matches'; // Jump directly to matches
+    
+    activeSession.value.matches.push(newMatch);
     saveToLocalStorageOnly();
-    saveSessionToSupabase(newSession);
-    ElMessage.success(`สร้าง "${newSession.name}" เรียบร้อยแล้ว!`);
+    saveSessionToSupabase(activeSession.value);
+    ElMessage.success('เพิ่มคู่แข่งขันเรียบร้อยแล้ว');
+  });
+};
+
+const handleDeleteMatch = (matchId: number) => {
+  checkAdminAndExecute(() => {
+    if (!activeSession.value) return;
+    activeSession.value.matches = activeSession.value.matches.filter(m => m.id !== matchId);
+    
+    // Re-index rounds/sequences
+    activeSession.value.matches.forEach((m, idx) => {
+      m.round = idx + 1;
+    });
+    
+    saveToLocalStorageOnly();
+    saveSessionToSupabase(activeSession.value);
+    ElMessage.success('ลบคู่แข่งขันเรียบร้อยแล้ว');
   });
 };
 
@@ -912,9 +995,13 @@ onMounted(() => {
           <MatchList 
             :matches="activeSessionMatches" 
             :teams="teams" 
+            :match-mode="activeSession?.matchMode || 'fixed'"
+            :is-admin="isAdmin"
             @update-score="handleUpdateScore" 
             @reset-match="handleResetMatch"
             @shuffle-matches="handleShuffleMatches"
+            @add-match="handleAddMatch"
+            @delete-match="handleDeleteMatch"
           />
         </div>
 
@@ -1056,6 +1143,67 @@ onMounted(() => {
         <span>ตั้งค่า</span>
       </div>
     </nav>
+
+    <!-- New Session Creation Dialog -->
+    <el-dialog
+      v-model="newSessionDialogVisible"
+      title="สร้างสัปดาห์การแข่งขันใหม่"
+      width="90%"
+      style="max-width: 500px;"
+      destroy-on-close
+    >
+      <div style="display: flex; flex-direction: column; gap: 16px;">
+        <div>
+          <span style="font-weight: 600; font-size: 0.85rem; display: block; margin-bottom: 8px;">
+            ชื่อสัปดาห์
+          </span>
+          <el-input v-model="newSessionName" placeholder="เช่น สัปดาห์ที่ 2" />
+        </div>
+        
+        <div>
+          <span style="font-weight: 600; font-size: 0.85rem; display: block; margin-bottom: 8px;">
+            วันที่เตะ
+          </span>
+          <el-date-picker
+            v-model="newSessionDate"
+            type="date"
+            placeholder="เลือกวันที่"
+            style="width: 100%"
+            value-format="YYYY-MM-DD"
+          />
+        </div>
+
+        <div>
+          <span style="font-weight: 600; font-size: 0.85rem; display: block; margin-bottom: 8px;">
+            รูปแบบการแข่งขัน
+          </span>
+          <el-radio-group v-model="newSessionMode" style="display: flex; gap: 12px; width: 100%;">
+            <el-radio-button value="fixed" style="flex: 1;">
+              ตารางคงที่ (Fixed 12 นัด)
+            </el-radio-button>
+            <el-radio-button value="flexible" style="flex: 1;">
+              พบกันเอง/ชนะอยู่ต่อ
+            </el-radio-button>
+          </el-radio-group>
+          <div style="margin-top: 8px; font-size: 0.75rem; color: var(--text-muted);">
+            <span v-if="newSessionMode === 'fixed'">
+              * ระบบจะสร้างตารางการแข่งล่วงหน้า 12 แมตช์แบบพบกันหมด (เลก 1 และเลก 2) โดยอัตโนมัติ
+            </span>
+            <span v-else>
+              * ไม่มีตารางล่วงหน้า แอดมินสามารถสลับทีมคู่เตะ ชนะอยู่ต่อ และลบ/เพิ่มแมตช์ทีละนัดได้อย่างอิสระ
+            </span>
+          </div>
+        </div>
+      </div>
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button @click="newSessionDialogVisible = false">ยกเลิก</el-button>
+          <el-button type="primary" @click="confirmAddSession">
+            ยืนยันสร้าง
+          </el-button>
+        </div>
+      </template>
+    </el-dialog>
 
     <!-- Roster Import Dialog -->
     <el-dialog

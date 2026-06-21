@@ -21,6 +21,7 @@ export interface GameSession {
   month: string;
   matches: Match[];
   teamPlayers?: Record<string, string[]>;
+  matchMode?: 'fixed' | 'flexible';
 }
 
 export interface StandingRow {

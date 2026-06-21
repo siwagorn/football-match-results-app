@@ -4,9 +4,13 @@
       <h2 class="section-title">
         <el-icon><Calendar /></el-icon>
         การแข่งขัน ({{ playedMatchesCount }}/{{ matches.length }})
+        <el-tag :type="matchMode === 'fixed' ? 'primary' : 'warning'" size="small" style="margin-left: 8px;">
+          {{ matchMode === 'fixed' ? 'ตารางคงที่' : 'โหมดอิสระ' }}
+        </el-tag>
       </h2>
       <div class="filter-controls">
         <el-tooltip
+          v-if="matchMode === 'fixed'"
           content="ไม่สามารถสุ่มตารางแข่งได้เนื่องจากมีการแข่งบางแมตช์แล้ว"
           placement="top"
           :disabled="playedMatchesCount === 0"
@@ -31,8 +35,50 @@
       </div>
     </div>
 
-    <!-- Match Rounds Grouping -->
-    <div class="rounds-container">
+    <!-- Quick Add Match Form (Flexible Mode) -->
+    <div v-if="matchMode === 'flexible' && isAdmin" class="add-match-form">
+      <span class="add-match-title">
+        <el-icon><Plus /></el-icon> เพิ่มคู่แข่งขันด่วน
+      </span>
+      <div class="add-match-controls">
+        <el-select v-model="addMatchHomeTeamId" placeholder="ทีมเหย้า" size="small" style="width: 130px;">
+          <el-option 
+            v-for="t in teams" 
+            :key="t.id" 
+            :label="t.name" 
+            :value="t.id" 
+          >
+            <span style="display: inline-flex; align-items: center; gap: 8px;">
+              <span class="team-color-dot" :style="{ backgroundColor: t.color }"></span>
+              {{ t.name }}
+            </span>
+          </el-option>
+        </el-select>
+        
+        <span class="vs-text-form">vs</span>
+        
+        <el-select v-model="addMatchAwayTeamId" placeholder="ทีมเยือน" size="small" style="width: 130px;">
+          <el-option 
+            v-for="t in teams" 
+            :key="t.id" 
+            :label="t.name" 
+            :value="t.id" 
+          >
+            <span style="display: inline-flex; align-items: center; gap: 8px;">
+              <span class="team-color-dot" :style="{ backgroundColor: t.color }"></span>
+              {{ t.name }}
+            </span>
+          </el-option>
+        </el-select>
+        
+        <el-button type="success" size="small" @click="submitAddMatch">
+          เพิ่มคู่แข่ง
+        </el-button>
+      </div>
+    </div>
+
+    <!-- Match Rounds Grouping (Fixed Mode) -->
+    <div v-if="matchMode === 'fixed'" class="rounds-container">
       <div 
         v-for="roundNum in 6" 
         :key="roundNum" 
@@ -97,10 +143,10 @@
                   </span>
                   
                   <el-button 
-                    circle 
-                    size="small"
-                    class="control-btn"
-                    @click="adjustScore(match.id, 'home', 1)"
+                     circle 
+                     size="small"
+                     class="control-btn"
+                     @click="adjustScore(match.id, 'home', 1)"
                   >
                     <el-icon><Plus /></el-icon>
                   </el-button>
@@ -145,6 +191,129 @@
         </div>
       </div>
     </div>
+
+    <!-- Single Sequential List (Flexible Mode) -->
+    <div v-else class="rounds-container">
+      <div class="matches-list">
+        <div 
+          v-for="(match, idx) in filteredMatches" 
+          :key="match.id" 
+          class="match-item-card"
+          :class="{ 'is-played': match.played }"
+        >
+          <!-- Match Header (status & reset & delete) -->
+          <div class="match-card-top">
+            <span class="match-seq-title">นัดที่ {{ idx + 1 }}</span>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <el-tag 
+                :type="match.played ? 'success' : 'info'" 
+                size="small" 
+                effect="plain"
+                class="status-tag"
+              >
+                {{ match.played ? 'จบเกม' : 'ยังไม่แข่ง' }}
+              </el-tag>
+              
+              <el-button 
+                v-if="match.played" 
+                type="danger" 
+                link
+                size="small"
+                @click="resetMatch(match.id)"
+              >
+                <el-icon><RefreshRight /></el-icon> รีเซ็ต
+              </el-button>
+              
+              <el-button 
+                v-if="isAdmin" 
+                type="danger" 
+                link
+                size="small"
+                @click="deleteMatch(match.id)"
+              >
+                <el-icon><Delete /></el-icon> ลบ
+              </el-button>
+            </div>
+          </div>
+
+          <!-- Teams and Scores -->
+          <div class="match-body">
+            <!-- Home Team -->
+            <div class="team-side home-side">
+              <span class="team-color-indicator" :style="{ backgroundColor: getTeamColor(match.homeTeamId) }"></span>
+              <span class="team-name text-truncate">{{ getTeamName(match.homeTeamId) }}</span>
+            </div>
+
+            <!-- Score Control Panel -->
+            <div class="score-selector">
+              <!-- Home Score Control -->
+              <div class="score-control-group">
+                <el-button 
+                  circle 
+                  size="small"
+                  class="control-btn"
+                  :disabled="match.homeScore !== null && match.homeScore <= 0"
+                  @click="adjustScore(match.id, 'home', -1)"
+                >
+                  <el-icon><Minus /></el-icon>
+                </el-button>
+                
+                <span class="score-display" :class="{ 'is-empty': !match.played }">
+                  {{ match.homeScore !== null ? match.homeScore : '-' }}
+                </span>
+                
+                <el-button 
+                  circle 
+                  size="small"
+                  class="control-btn"
+                  @click="adjustScore(match.id, 'home', 1)"
+                >
+                  <el-icon><Plus /></el-icon>
+                </el-button>
+              </div>
+
+              <span class="vs-text">vs</span>
+
+              <!-- Away Score Control -->
+              <div class="score-control-group">
+                <el-button 
+                  circle 
+                  size="small"
+                  class="control-btn"
+                  :disabled="match.awayScore !== null && match.awayScore <= 0"
+                  @click="adjustScore(match.id, 'away', -1)"
+                >
+                  <el-icon><Minus /></el-icon>
+                </el-button>
+                
+                <span class="score-display" :class="{ 'is-empty': !match.played }">
+                  {{ match.awayScore !== null ? match.awayScore : '-' }}
+                </span>
+                
+                <el-button 
+                  circle 
+                  size="small"
+                  class="control-btn"
+                  @click="adjustScore(match.id, 'away', 1)"
+                >
+                  <el-icon><Plus /></el-icon>
+                </el-button>
+              </div>
+            </div>
+
+            <!-- Away Team -->
+            <div class="team-side away-side">
+              <span class="team-name text-truncate">{{ getTeamName(match.awayTeamId) }}</span>
+              <span class="team-color-indicator" :style="{ backgroundColor: getTeamColor(match.awayTeamId) }"></span>
+            </div>
+          </div>
+        </div>
+        
+        <div v-if="filteredMatches.length === 0" class="no-matches-flexible">
+          <el-empty description="ยังไม่มีคู่แข่งขัน (กรุณาเพิ่มคู่แข่งด่วนด้านบน)" />
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -167,18 +336,56 @@ interface Match {
   played: boolean;
 }
 
-const props = defineProps<{
-  matches: Match[];
-  teams: Team[];
-}>();
+import { ElMessage } from 'element-plus';
+
+const props = withDefaults(
+  defineProps<{
+    matches: Match[];
+    teams: Team[];
+    matchMode?: 'fixed' | 'flexible';
+    isAdmin?: boolean;
+  }>(),
+  {
+    matchMode: 'fixed',
+    isAdmin: false
+  }
+);
 
 const emit = defineEmits<{
   (e: 'update-score', matchId: number, homeScore: number | null, awayScore: number | null, played: boolean): void;
   (e: 'reset-match', matchId: number): void;
   (e: 'shuffle-matches'): void;
+  (e: 'add-match', homeTeamId: string, awayTeamId: string): void;
+  (e: 'delete-match', matchId: number): void;
 }>();
 
 const filterActive = ref<'all' | 'pending' | 'completed'>('all');
+const addMatchHomeTeamId = ref('');
+const addMatchAwayTeamId = ref('');
+
+const filteredMatches = computed(() => {
+  if (filterActive.value === 'all') return props.matches;
+  if (filterActive.value === 'pending') return props.matches.filter(m => !m.played);
+  return props.matches.filter(m => m.played);
+});
+
+const submitAddMatch = () => {
+  if (!addMatchHomeTeamId.value || !addMatchAwayTeamId.value) {
+    ElMessage.warning('กรุณาเลือกทีมทั้งสองฝั่ง');
+    return;
+  }
+  if (addMatchHomeTeamId.value === addMatchAwayTeamId.value) {
+    ElMessage.warning('ไม่สามารถเลือกทีมเดียวกันเจอกันเองได้');
+    return;
+  }
+  emit('add-match', addMatchHomeTeamId.value, addMatchAwayTeamId.value);
+  addMatchHomeTeamId.value = '';
+  addMatchAwayTeamId.value = '';
+};
+
+const deleteMatch = (matchId: number) => {
+  emit('delete-match', matchId);
+};
 
 const playedMatchesCount = computed(() => {
   return props.matches.filter(m => m.played).length;
@@ -421,5 +628,61 @@ const shuffleMatches = () => {
   font-weight: 600;
   text-transform: uppercase;
   margin: 0 2px;
+}
+
+/* Flexible mode styles */
+.add-match-form {
+  padding: 14px;
+  margin-bottom: 16px;
+  background: rgba(0, 0, 0, 0.02);
+  border: 1px dashed var(--border-color);
+  border-radius: 12px;
+}
+
+.dark-theme .add-match-form {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.add-match-title {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.add-match-controls {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.vs-text-form {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-weight: bold;
+}
+
+.team-color-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.match-seq-title {
+  font-size: 0.8rem;
+  font-weight: bold;
+  color: var(--text-secondary);
+}
+
+.no-matches-flexible {
+  padding: 24px 0;
 }
 </style>
