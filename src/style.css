@@ -1,0 +1,300 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700&display=swap');
+
+:root {
+  --sans-font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --display-font: 'Outfit', var(--sans-font);
+  
+  --bg-color: #f8fafc;
+  --card-bg: #ffffff;
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #94a3b8;
+  --border-color: #e2e8f0;
+  
+  background-color: var(--bg-color);
+  color: var(--text-primary);
+  font-family: var(--sans-font);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Dark mode overrides (standard dark mode variables) */
+.dark-theme {
+  --bg-color: #0b0f19;
+  --card-bg: #151c2c;
+  --text-primary: #f8fafc;
+  --text-secondary: #cbd5e1;
+  --text-muted: #64748b;
+  --border-color: #1e293b;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+  background-color: var(--bg-color);
+  color: var(--text-primary);
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Scrollbar tweaks */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--text-muted);
+  border-radius: 3px;
+}
+
+/* App Container */
+.app-container {
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 0 16px 80px 16px; /* Space for bottom nav on mobile */
+  box-sizing: border-box;
+}
+
+/* Typography */
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--display-font);
+  font-weight: 600;
+  margin: 0;
+}
+
+/* Custom cards and layout elements */
+.header-section {
+  padding: 24px 0 16px 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.brand-title {
+  font-size: 1.5rem;
+  background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.brand-subtitle {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+/* Navigation tabs overrides for mobile */
+.el-tabs__nav-wrap::after {
+  height: 1px !important;
+  background-color: var(--border-color) !important;
+}
+
+.el-tabs__item {
+  font-family: var(--display-font);
+  font-size: 1rem !important;
+  font-weight: 500 !important;
+  color: var(--text-secondary) !important;
+}
+
+.el-tabs__item.is-active {
+  color: #3b82f6 !important;
+  font-weight: 600 !important;
+}
+
+.el-tabs__active-bar {
+  background-color: #3b82f6 !important;
+}
+
+/* Card Styling */
+.custom-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+  padding: 16px;
+  margin-bottom: 16px;
+  transition: box-shadow 0.3s ease, border-color 0.3s ease;
+}
+
+/* Team color badge */
+.team-color-circle {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  display: inline-block;
+  vertical-align: middle;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.2);
+}
+
+.team-color-picker-item {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  cursor: pointer;
+  border: 2px solid transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.2s, border-color 0.2s;
+}
+
+.team-color-picker-item:hover {
+  transform: scale(1.1);
+}
+
+.team-color-picker-item.is-active {
+  border-color: #3b82f6;
+  transform: scale(1.05);
+}
+
+/* Match row */
+.match-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.match-card:last-child {
+  border-bottom: none;
+}
+
+.match-header {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.match-teams {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.match-team {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.95rem;
+  font-weight: 500;
+}
+
+.match-team.team-home {
+  justify-content: flex-start;
+}
+
+.match-team.team-away {
+  justify-content: flex-end;
+  flex-direction: row-reverse;
+  text-align: right;
+}
+
+.match-scores-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+}
+
+.score-control {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.score-num-display {
+  font-family: var(--display-font);
+  font-size: 1.5rem;
+  font-weight: 700;
+  width: 28px;
+  text-align: center;
+}
+
+.score-btn {
+  padding: 4px !important;
+  height: 24px !important;
+  width: 24px !important;
+}
+
+.score-divider {
+  color: var(--text-muted);
+  font-weight: bold;
+}
+
+/* Mobile responsive adjustments for table */
+.responsive-table th, .responsive-table td {
+  padding: 8px 4px !important;
+}
+
+.standings-team-cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+}
+
+.standings-badge {
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+/* Bottom Nav bar for extreme mobile convenience */
+.bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 64px;
+  background-color: var(--card-bg);
+  border-top: 1px solid var(--border-color);
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  z-index: 100;
+  box-shadow: 0 -4px 10px rgba(0, 0, 0, 0.05);
+}
+
+.bottom-nav-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+  flex: 1;
+  padding: 8px 0;
+  transition: color 0.2s;
+}
+
+.bottom-nav-item.active {
+  color: #3b82f6;
+  font-weight: 600;
+}
+
+.bottom-nav-item .el-icon {
+  font-size: 1.25rem;
+}
+
+/* Animations */
+.fade-enter-active, .fade-leave-active {
+  transition: opacity 0.2s ease;
+}
+.fade-enter-from, .fade-leave-to {
+  opacity: 0;
+}
