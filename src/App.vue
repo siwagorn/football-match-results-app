@@ -17,6 +17,7 @@ import html2canvas from 'html2canvas';
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 const correctPasscode = import.meta.env.VITE_ADMIN_PASSCODE || '1234';
+const appName = import.meta.env.VITE_APP_NAME || 'เตะบอลวันอังคาร Match Day';
 
 const activeTab = ref<'standings' | 'matches' | 'history' | 'teams' | 'settings'>('standings');
 const isDark = ref(true); // Default to Dark Mode for high-end aesthetics
@@ -469,6 +470,50 @@ const handleResetMatch = (matchId: number) => {
   });
 };
 
+const handleShuffleMatches = () => {
+  checkAdminAndExecute(() => {
+    if (!activeSession.value) return;
+    
+    // Check if any match in the session is played
+    const hasPlayedMatches = activeSession.value.matches.some(m => m.played);
+    if (hasPlayedMatches) {
+      ElMessage.warning('ไม่สามารถสุ่มตารางได้เนื่องจากมีการแข่งบางแมตช์เริ่มเล่นไปแล้ว');
+      return;
+    }
+
+    const shuffleArray = <T>(array: T[]): T[] => {
+      const arr = [...array];
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+      return arr;
+    };
+
+    const isSameSchedule = (matchesA: Match[], matchesB: Match[]) => {
+      if (matchesA.length !== matchesB.length) return false;
+      return matchesA.every((m, idx) => m.homeTeamId === matchesB[idx].homeTeamId && m.awayTeamId === matchesB[idx].awayTeamId);
+    };
+
+    let shuffledTeams = [...teams.value];
+    let newMatches = generateInitialMatches(shuffledTeams);
+    let attempts = 0;
+    
+    // Attempt to shuffle until we get a different schedule, up to 10 attempts
+    while (isSameSchedule(activeSession.value.matches, newMatches) && attempts < 10) {
+      shuffledTeams = shuffleArray(teams.value);
+      newMatches = generateInitialMatches(shuffledTeams);
+      attempts++;
+    }
+
+    activeSession.value.matches = newMatches;
+    
+    saveToLocalStorageOnly();
+    saveSessionToSupabase(activeSession.value);
+    ElMessage.success('สุ่มและจัดตารางการแข่งขันใหม่เรียบร้อยแล้ว!');
+  });
+};
+
 const handleTeamsUpdate = (updatedTeams: Team[]) => {
   checkAdminAndExecute(() => {
     teams.value = updatedTeams;
@@ -732,7 +777,7 @@ onMounted(() => {
       <div>
         <h1 class="brand-title">
           <el-icon><Trophy /></el-icon>
-          Football Planner
+          {{ appName }}
         </h1>
         <p class="brand-subtitle">
           จัดตารางแข่งเฉพาะกลุ่ม (กำลังแก้ไข: <strong style="color: #3b82f6;">{{ activeSessionName }}</strong>)
@@ -869,6 +914,7 @@ onMounted(() => {
             :teams="teams" 
             @update-score="handleUpdateScore" 
             @reset-match="handleResetMatch"
+            @shuffle-matches="handleShuffleMatches"
           />
         </div>
 
@@ -955,7 +1001,7 @@ onMounted(() => {
             </div>
             
             <div class="info-footer">
-              <p>Football Planner v2.0.0 (Weekly Session Aggregator)</p>
+              <p>{{ appName }} v2.0.0 (Weekly Session Aggregator)</p>
               <p>ข้อมูลทั้งหมดบันทึกในหน่วยความจำของบราวเซอร์เครื่องนี้ (LocalStorage)</p>
             </div>
           </div>

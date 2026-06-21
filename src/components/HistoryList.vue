@@ -3,7 +3,7 @@
     <div class="history-header">
       <h2 class="section-title">
         <el-icon><Calendar /></el-icon>
-        ประวัติการเล่น ({{ sessions.length }} สัปดาห์)
+        ประวัติการเล่น (แสดง {{ displayedSessions.length }} จาก {{ sessions.length }} สัปดาห์)
       </h2>
       <el-button type="primary" size="small" @click="$emit('add-session')">
         <el-icon><Plus /></el-icon> เพิ่มสัปดาห์ใหม่
@@ -11,13 +11,91 @@
     </div>
     <p class="section-desc">รายการสรุปผลคะแนนประจำสัปดาห์ที่เคยเล่นมาทั้งหมด</p>
 
+    <!-- Filters Section -->
+    <div v-if="sessions.length > 0" class="history-filters-box">
+      <div class="filters-header">
+        <span class="filters-title">
+          <el-icon><Filter /></el-icon> ตัวกรองข้อมูลประวัติ
+        </span>
+        <el-button 
+          v-if="hasActiveFilters" 
+          type="warning" 
+          size="small" 
+          link 
+          @click="clearFilters"
+        >
+          <el-icon><Refresh /></el-icon> ล้างตัวกรอง
+        </el-button>
+      </div>
+      
+      <div class="filters-grid">
+        <!-- Date Range Filter -->
+        <div class="filter-item daterange-item">
+          <span class="filter-item-label">เลือกช่วงวันที่:</span>
+          <el-date-picker
+            v-model="filterDateRange"
+            type="daterange"
+            range-separator="ถึง"
+            start-placeholder="เริ่มต้น"
+            end-placeholder="สิ้นสุด"
+            size="small"
+            style="width: 100%"
+            clearable
+          />
+        </div>
+
+        <!-- Year Filter -->
+        <div class="filter-item">
+          <span class="filter-item-label">ปีการแข่งขัน:</span>
+          <el-select v-model="filterYear" size="small" style="width: 100%">
+            <el-option label="ทั้งหมด" value="all" />
+            <el-option 
+              v-for="year in availableYears" 
+              :key="year" 
+              :label="parseInt(year) + 543" 
+              :value="year" 
+            />
+          </el-select>
+        </div>
+
+        <!-- Month Filter -->
+        <div class="filter-item">
+          <span class="filter-item-label">เดือน:</span>
+          <el-select v-model="filterMonth" size="small" style="width: 100%">
+            <el-option label="ทั้งหมด" value="all" />
+            <el-option 
+              v-for="m in thaiMonths" 
+              :key="m.value" 
+              :label="m.label" 
+              :value="m.value" 
+            />
+          </el-select>
+        </div>
+
+        <!-- Limit Filter -->
+        <div class="filter-item limit-item">
+          <span class="filter-item-label">จำนวนที่แสดง:</span>
+          <el-radio-group v-model="displayLimit" size="small" style="width: 100%">
+            <el-radio-button :value="5">5 เกมล่าสุด</el-radio-button>
+            <el-radio-button :value="10">10 เกม</el-radio-button>
+            <el-radio-button :value="20">20 เกม</el-radio-button>
+            <el-radio-button value="all">ทั้งหมด</el-radio-button>
+          </el-radio-group>
+        </div>
+      </div>
+    </div>
+
     <div v-if="sessions.length === 0" class="no-history">
       <el-empty description="ยังไม่มีประวัติการแข่ง" />
     </div>
 
+    <div v-else-if="displayedSessions.length === 0" class="no-history">
+      <el-empty description="ไม่พบประวัติการแข่งที่ตรงกับเงื่อนไขตัวกรอง" />
+    </div>
+
     <div v-else class="sessions-timeline">
       <div 
-        v-for="session in sortedSessions" 
+        v-for="session in displayedSessions" 
         :key="session.id" 
         class="session-card"
         :class="{ 'is-active': session.id === activeSessionId }"
@@ -73,7 +151,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { ref, computed } from 'vue';
 import { ElMessageBox } from 'element-plus';
 
 interface Team {
@@ -112,10 +190,94 @@ const emit = defineEmits<{
   (e: 'add-session'): void;
 }>();
 
+// Filter states
+const filterYear = ref<string>('all');
+const filterMonth = ref<string>('all');
+const filterDateRange = ref<[Date, Date] | null>(null);
+const displayLimit = ref<number | 'all'>(5);
+
+// Get available years from sessions
+const availableYears = computed(() => {
+  const years = new Set<string>();
+  props.sessions.forEach(s => {
+    if (s.date) {
+      const year = s.date.split('-')[0];
+      if (year) years.add(year);
+    }
+  });
+  return Array.from(years).sort((a, b) => b.localeCompare(a));
+});
+
+const thaiMonths = [
+  { value: '01', label: 'มกราคม' },
+  { value: '02', label: 'กุมภาพันธ์' },
+  { value: '03', label: 'มีนาคม' },
+  { value: '04', label: 'เมษายน' },
+  { value: '05', label: 'พฤษภาคม' },
+  { value: '06', label: 'มิถุนายน' },
+  { value: '07', label: 'กรกฎาคม' },
+  { value: '08', label: 'สิงหาคม' },
+  { value: '09', label: 'กันยายน' },
+  { value: '10', label: 'ตุลาคม' },
+  { value: '11', label: 'พฤศจิกายน' },
+  { value: '12', label: 'ธันวาคม' }
+];
+
 // Sort sessions from newest to oldest
 const sortedSessions = computed(() => {
   return [...props.sessions].sort((a, b) => b.date.localeCompare(a.date));
 });
+
+// Filter sessions
+const filteredSessions = computed(() => {
+  return sortedSessions.value.filter(session => {
+    // Year filter
+    if (filterYear.value !== 'all') {
+      const year = session.date.split('-')[0];
+      if (year !== filterYear.value) return false;
+    }
+    
+    // Month filter
+    if (filterMonth.value !== 'all') {
+      const month = session.date.split('-')[1];
+      if (month !== filterMonth.value) return false;
+    }
+    
+    // Date range filter
+    if (filterDateRange.value && filterDateRange.value.length === 2) {
+      const sDate = new Date(session.date);
+      sDate.setHours(0, 0, 0, 0);
+      
+      const start = new Date(filterDateRange.value[0]);
+      start.setHours(0, 0, 0, 0);
+      
+      const end = new Date(filterDateRange.value[1]);
+      end.setHours(23, 59, 59, 999);
+      
+      if (sDate < start || sDate > end) return false;
+    }
+    
+    return true;
+  });
+});
+
+// Limit display sessions
+const displayedSessions = computed(() => {
+  if (displayLimit.value === 'all') {
+    return filteredSessions.value;
+  }
+  return filteredSessions.value.slice(0, displayLimit.value);
+});
+
+const hasActiveFilters = computed(() => {
+  return filterYear.value !== 'all' || filterMonth.value !== 'all' || filterDateRange.value !== null;
+});
+
+const clearFilters = () => {
+  filterYear.value = 'all';
+  filterMonth.value = 'all';
+  filterDateRange.value = null;
+};
 
 const formatDate = (dateStr: string) => {
   if (!dateStr) return '';
@@ -333,5 +495,86 @@ const confirmDelete = (session: GameSession) => {
 
 .font-bold {
   font-weight: 700;
+}
+
+/* History Filters Styling */
+.history-filters-box {
+  background: rgba(0, 0, 0, 0.02);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin-bottom: 20px;
+}
+
+.dark-theme .history-filters-box {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.filters-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 6px;
+}
+
+.filters-title {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.filters-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+.filter-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.filter-item-label {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.daterange-item, .limit-item {
+  grid-column: span 2;
+}
+
+/* Deep overrides for Element Plus inside filters */
+:deep(.el-range-editor.el-input__inner) {
+  padding: 0 8px;
+}
+
+:deep(.el-radio-group) {
+  display: flex;
+  width: 100%;
+}
+
+:deep(.el-radio-button) {
+  flex: 1;
+}
+
+:deep(.el-radio-button__inner) {
+  width: 100%;
+  padding: 8px 4px;
+  font-size: 0.75rem;
+  text-align: center;
+}
+
+@media (max-width: 400px) {
+  :deep(.el-radio-button__inner) {
+    font-size: 0.7rem;
+    padding: 8px 2px;
+  }
 }
 </style>

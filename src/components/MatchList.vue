@@ -6,6 +6,23 @@
         การแข่งขัน ({{ playedMatchesCount }}/{{ matches.length }})
       </h2>
       <div class="filter-controls">
+        <el-tooltip
+          content="ไม่สามารถสุ่มตารางแข่งได้เนื่องจากมีการแข่งบางแมตช์แล้ว"
+          placement="top"
+          :disabled="playedMatchesCount === 0"
+        >
+          <span>
+            <el-button 
+              type="warning" 
+              size="small" 
+              plain 
+              :disabled="playedMatchesCount > 0"
+              @click="shuffleMatches"
+            >
+              <el-icon><Refresh /></el-icon> สุ่มตารางแข่ง
+            </el-button>
+          </span>
+        </el-tooltip>
         <el-radio-group v-model="filterActive" size="small">
           <el-radio-button value="all">ทั้งหมด</el-radio-button>
           <el-radio-button value="pending">ยังไม่แข่ง</el-radio-button>
@@ -158,6 +175,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'update-score', matchId: number, homeScore: number | null, awayScore: number | null, played: boolean): void;
   (e: 'reset-match', matchId: number): void;
+  (e: 'shuffle-matches'): void;
 }>();
 
 const filterActive = ref<'all' | 'pending' | 'completed'>('all');
@@ -210,6 +228,10 @@ const adjustScore = (matchId: number, side: 'home' | 'away', amount: number) => 
 const resetMatch = (matchId: number) => {
   emit('reset-match', matchId);
 };
+
+const shuffleMatches = () => {
+  emit('shuffle-matches');
+};
 </script>
 
 <style scoped>
@@ -218,6 +240,13 @@ const resetMatch = (matchId: number) => {
   flex-direction: column;
   gap: 10px;
   margin-bottom: 16px;
+}
+
+.filter-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 @media (min-width: 480px) {
